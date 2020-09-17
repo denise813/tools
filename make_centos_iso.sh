@@ -24,6 +24,13 @@ cp ${mnt_path}/.discinfo ${mnt_path}/.treeinfo ${dest_path}/
 #sed -i 's/timeout=60/timeout=1/g' ${dest_path}/EFI/BOOT/grub.cfg
 #sed -i 's#CentOS-8-2-2004-x86_64-dvd quiet#CentOS-8-2-2004-x86_64-dvd quiet ks=cdrom:/ks7_mini.cfg#g' ${dest_path}/EFI/BOOT/grub.cfg
 #sed -i 's/timeout 600/timeout 10/g' ${dest_path}/isolinux/isolinux.cfg
+sed -i 's/label linux/
+label linux
+  menu label ^Install lenovo Centos 8
+  kernel vmlinuz
+  append initrd=initrd.img inst.stage2=hd:LABEL=CentOS7 ks=cdrom:/isolinux/ks.cfg
+label linux/g' ${dest_path}/isolinux/isolinux.cfg
+
 # 4 拷贝安装包
 echo "copy do"
 # 4.1 查询当前主机安装的软件包
@@ -65,6 +72,6 @@ pushd ${dest_path}
 
 genisoimage -joliet-long -V "CentOS 8 x86_64 Minimal" -o ${out_path}/${ios_name}.iso -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -R -J -v -cache-inodes -T -eltorito-alt-boot -e images/efiboot.img -no-emul-boot ${dest_path}/
 popd
-umount ${mnt_path}
+#umount ${mnt_path}
 echo "end" 
 echo ${out_path}

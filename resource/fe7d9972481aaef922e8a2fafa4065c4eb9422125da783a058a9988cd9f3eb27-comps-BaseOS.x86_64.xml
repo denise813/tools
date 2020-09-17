@@ -4,6 +4,10 @@
   'comps.dtd'>
 <comps>
   <group>
+    <id>additional-lenovo</id>
+    <name>Additional lenovo</name>
+  </group>
+  <group>
     <id>additional-devel</id>
     <name>Additional Development</name>
     <name xml:lang="as">অতিৰিক্ত উন্নয়ন</name>
