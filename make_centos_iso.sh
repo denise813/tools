@@ -8,7 +8,7 @@ iso_path="${top_path}/iso/${ios_name}.iso"
 rpm_path="${top_path}/resource/"
 
 #1、安装必要工具
-yum -y install createrepo mkisofs isomd5sum rsync
+yum -y install createrepo  isomd5sum rsync
 
 #2、复制操作系统镜像内容
 mkdir -p ${dest_path}
@@ -31,21 +31,21 @@ label linux
   append initrd=initrd.img inst.stage2=hd:LABEL=CentOS7 ks=cdrom:/isolinux/ks.cfg
 label linux/g' ${dest_path}/isolinux/isolinux.cfg
 
-# 4 拷贝安装包
+# 4 拷贝软件包
 echo "copy do"
 # 4.1 查询当前主机安装的软件包
-#rpm -qa > ./install.log
+rpm -qa > ./install.log
 # 4.2 删除原来的 iso中的 rpm
-#rm -f ${dest_path}/BaseOS/Packages/*
+rm -f ${dest_path}/BaseOS/Packages/*
 # 4.3 拷贝本机安装的需要的包
-#cat /root/instal.log|awk '{print $0}' |xargs -i cp ${mnt_path}/Packages/{}.rpm ${dest_path}/Packages/
+cat /root/instal.log|awk '{print $0}' |xargs -i cp ${mnt_path}/Packages/{}.rpm ${dest_path}/Packages/
 # 4.4 拷贝可以下载的安装包
-#yum -y install --downloadonly --downloaddir=${dest_path}/Packages/
+yum -y install --downloadonly --downloaddir=${dest_path}/Packages/
 
-# 4.5 拷贝自己不能系在的安装包
+# 4.5 拷贝定制的包
 #cp ${rpm_path}/* ${dest_path}/BaseOS/Packages/
-#cp ${rpm_path}/kernel-* ${dest_path}/BaseOS/Packages/
-# 4.5.1 拷贝内核包
+
+# 4.6 拷贝内核包
 #rm -rf ${dest_path}/BaseOS/Packages/kernel-*
 #cp ${rpm_path}/kernel-4.18.0* ${dest_path}/BaseOS/Packages/
 #cp ${rpm_path}/kernel-modules-4.18.0* ${dest_path}/BaseOS/Packages/
@@ -54,7 +54,8 @@ echo "copy do"
 #cp ${rpm_path}/kernel-tools-libs-4.18.0* ${dest_path}/BaseOS/Packages/
 #cp ${rpm_path}/kernel-headers-4.18.0* ${dest_path}/BaseOS/Packages/
 #cp ${rpm_path}/kernel-tools-4.18.0* ${dest_path}/BaseOS/Packages/
-# 4.5.2 ceph 依赖包
+
+# 4.7 去掉ceph包本身
 
 echo "copy done"
 

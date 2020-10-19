@@ -1,0 +1,5 @@
+[ceph]
+name=ceph
+baseurl=file:///var/www/html/ceph
+enabled=1
+gpgcheck=0
