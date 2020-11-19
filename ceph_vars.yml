@@ -1,0 +1,20 @@
+---
+cluster_name: ceph
+cluster_id: 945754ee-b689-5b6a-a6ba-c87b537b1cfa
+admin_node: 192.168.10.101
+public_interface: enp88s0f0
+cluster_interface: enp88s0f0
+clients_users:
+  - name: nova
+
+wal_size: 10
+db_size: 10
+cache_devices: /dev/nvme0n1
+mata_devices: /dev/nvme1n1
+data_devices:
+  - /dev/sda
+  - /dev/sdb
+  - /dev/sdc
+  - /dev/sdd
+  - /dev/sde
+  - /dev/sdf

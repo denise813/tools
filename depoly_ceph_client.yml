@@ -1,0 +1,35 @@
+---
+- hosts:
+  - clients
+  vars_files:
+    - ceph_vars.yml
+  
+  pre_tasks:
+    # ip v6 /sbin/ifconfig enp88s0f0 | awk '/inet6/ {print $2}'|awk 'NR==2 {print $1}'
+    # ipv 4/sbin/ifconfig enp88s0f0 | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
+    # 子网掩码 /sbin/ifconfig enp88s0f0 | awk '/netmask/ {print $4}'
+    - name: get public node_addr
+      shell: /sbin/ifconfig {{public_interface}} | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
+      register: node_addr
+      
+    - name: cp ceph.repo
+       shell: scp root@{{admin_node}}:/etc/yum.repos.d/ceph.repo root@{{node_addr}}:/etc/yum.repos.d/ceph.repo
+     
+     - name: yum list
+       shell: yum list
+       
+     - name install
+       shell: yum install -y ceph-base ceph-common librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common
+       serial: 3
+
+     - name clean ceph.repo
+       shell: rm -rf /etc/yum.repos.d/ceph.repo
+
+  tasks:
+    - name: cp admin key
+      shell: ceph-authtool --create-keyring --gen-key -n client.admin --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow *' --cap mgr 'allow *' /etc/ceph/{{cluster_name}}.client.admin.keyring
+     
+     - name: create other client
+      shell: ceph auth get-or-create mgr.{{node_name}} -o //etc/ceph/{{cluster_name}}.client.{{item}}.keyring
+      when: {{clients_users}}
+      

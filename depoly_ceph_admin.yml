@@ -1,0 +1,113 @@
+---
+- hosts:
+  - admin
+  vars_files:
+    - ceph_vars.yml
+  
+  pre_tasks:
+    - name: get hostname
+      shell: hostname
+      register: node_name
+      
+    # ip v6 /sbin/ifconfig enp88s0f0 | awk '/inet6/ {print $2}'|awk 'NR==2 {print $1}'
+    # ipv 4/sbin/ifconfig enp88s0f0 | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
+    # 子网掩码 /sbin/ifconfig enp88s0f0 | awk '/netmask/ {print $4}'
+    
+    - name: get public node_addr
+      shell: /sbin/ifconfig {{public_interface}} | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
+      register: node_addr
+     
+    - name: clean tmp mon key
+      shell: rm -rf /tmp/{{cluster_name}}.mon.keyring
+      
+    - name:  clean admin key
+      shell: rm -rf /etc/ceph/{{cluster_name}}.client.admin.keyring
+     
+    - name: clean tmp monmap
+      shell: rm -rf /tmp/{{cluster_name}}_monmap.1223
+      
+    -name : clean mon data
+       shell: rm -rf /var/lib/ceph/mon/{cluster_name}-{{node_name}}
+
+    -name: clean mgr data
+       shell: rm -rf /var/lib/ceph/mgr/{cluster_name}-{{node_name}}
+
+    - name: install
+       shell: yum install -y ceph-base ceph-common ceph-mon ceph-mgr librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common
+       
+    - name: create conf
+      shell: ./generate_ceph_conf.sh
+      delegate_to: {{admin_node}}
+
+  tasks:
+    - name：create tmp mon key
+      shell: ceph-authtool --create-keyring /tmp/{{cluster_name}}.mon.keyring --gen-key -n mon. --cap mon 'allow *'
+
+    - name: create admin key
+      shell: ceph-authtool --create-keyring --gen-key -n client.admin --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow *' --cap mgr 'allow *' /etc/ceph/{{cluster_name}}.client.admin.keyring
+
+    - name: create osd bootstrap keying 
+      shell: ceph-authtool --create-keyring /var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring --gen-key -n client.bootstrap-osd --cap mon 'profile bootstrap-osd' --cap mgr 'allow r'
+      
+    - name: join mon key
+      shell: ceph-authtool /tmp/{{cluster_name}}.mon.keyring --import-keyring /etc/ceph/{{cluster_name}}.client.admin.keyring
+
+    - name: join osd bootstrap keying
+      shell: ceph-authtool /tmp/{{cluster_name}}.mon.keyring --import-keyring /var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring
+
+     - name: create tmp monmap
+      shell: monmaptool --create --clobber --addv {{node_name}} [v2:{{node_addr}}:3300,v1:{{node_addr}}:6798] --fsid {cid} --print /tmp/{{cluster_name}}_monmap.1223
+     
+     - name: create data dir
+      shell: mkdir -p /var/lib/ceph/mon/{{cluster_name}}-{{node_name}}
+
+    - name: cp conf
+      shell: scp root@{{admin_node}}:tmp/ceph.conf root@{{node_addr}}:/etc/ceph/{{cluster_name}}.conf
+      
+    - name: mkfs mon
+      shell: ceph-mon --cluster {{cluster_name}} --mkfs -i {{node_name}} -c /etc/ceph/{{cluster_name}}.conf --monmap /tmp/{{cluster_name}}_monmap.1223 --keyring=/tmp/{{cluster_name}}.mon.keyring
+     
+    - name: mark done
+      shell: touch /var/lib/ceph/mon/{{cluster_name}}-{{node_name}}/done
+
+    - name: enable mon service
+      shell: systemctl enable ceph-mon@{{node_name}}
+      
+    - name: stop mon service
+      shell: systemctl stop ceph-mon@{{node_name}}
+      
+    - name: start mon service
+      shell: systemctl start ceph-mon@{{node_name}}
+      
+    - name: status mon service
+      shell: systemctl status ceph-mon@{{node_name}}
+
+    - name: get mon map
+      shell: ceph mon getmap -o monmap --cluster {{cluster_name}}
+     
+    - name: check mon
+      shell: monmaptool --print monmap
+
+    - name: auth mon
+      shell: ceph auth get mon. --cluster {{cluster_name}}
+      
+    - name: crush rm
+      shell: ceph osd crush rule rm replicated_rule
+     
+    - name: crush rm
+      shell: ceph osd crush remove default
+     
+    - name: create mgr key
+      shell: ceph auth get-or-create mgr. mon 'allow profile mgr' osd 'allow *' mds 'allow *' -o /var/lib/ceph/mgr/ceph-{{node_name}}/keyring
+      
+    - name: create mgr data dir
+      shell: mkdir -p /var/lib/ceph/mgr/{{cluster_name}}-{{node_name}}
+      
+    - name: enable mgr service
+      shell: systemctl enable ceph-mgr@{{node_name}}
+     
+     - name: start mgr service
+       shell: systemctl start ceph-mgr@{{node_name}}
+       
+     - name: status mgr service
+       shell: systemctl status ceph-mgr@{{node_name}}
