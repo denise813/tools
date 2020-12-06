@@ -1,0 +1,13 @@
+[admin]
+10.121.136.118
+[mons]
+10.121.133.88
+[osds]
+10.121.136.118
+[centos_clients]
+10.121.138.118
+[ceph_nodes:children]
+admin
+mons
+osds
+centos_clients
