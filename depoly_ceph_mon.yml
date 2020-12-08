@@ -55,7 +55,7 @@
       delegate_to: "{{admin_node}}"
 
     - name: create conf
-      shell: sh /tmp/generate_ceph_conf.sh /etc/ceph/{{cluster_name}}.conf.sample
+      shell: sh /tmp/generate_ceph_mon_conf.sh /etc/ceph/{{cluster_name}}.conf.sample
 
     - name : cp form admin
       shell: cp /etc/ceph/{{cluster_name}}.conf.sample /etc/ceph/{{cluster_name}}.conf

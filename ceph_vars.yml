@@ -12,15 +12,33 @@ public_network: 192.168.100.0/24
 cluster_network: 192.168.200.0/24
 clients_users:
   - name: nova
-
+cache_size: 70
 wal_size: 10
 db_size: 30
-cache_devices: /dev/nvme0n1
-mata_devices: /dev/nvme1n1
+cache_devices: nvme0n1
+mata_devices: nvme1n1
 data_devices:
-  - /dev/sda
-  - /dev/sdb
-  - /dev/sdc
-  - /dev/sdd
-  - /dev/sde
-  - /dev/sdf
+  - sda
+  - sdb
+  - sdc
+  - sdd
+  - sde
+  - sdf
+  - sdg
+  - sdh
+  - sdi
+  - sdj
+  - sdk
+  - sdl
+  - sdm
+  - sdn
+  - sdo
+  - sdp
+  - sdq
+  - sdl
+  - sds
+  - sdt
+  - sdu
+  - sdv
+  - sdw
+  - sdx

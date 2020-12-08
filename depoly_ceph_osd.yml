@@ -23,6 +23,9 @@
 
     - name: cp ceph.repo
       shell: wget -P /etc/yum.repos.d/ http://{{mirror_node}}/repo/centos8/ceph.repo
+
+    - name: install base
+      shell: yum install -y epel-release sdparm
      
     - name: install
       shell: yum install -y ceph-base ceph-common ceph-osd librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common
@@ -31,7 +34,7 @@
       shell: rm -rf /etc/yum.repos.d/ceph.repo
     
     - name : cp form admin
-      shell: scp root@{{admin_node}}:/etc/ceph/{{cluster_name}}.conf root@{{admin_addr}}:/tmp/{{cluster_name}}.conf.sample
+      shell: scp root@{{admin_node}}:/etc/ceph/{{cluster_name}}.conf.sample root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.conf.sample
       delegate_to: "{{admin_node}}"
  
   tasks:
@@ -44,14 +47,20 @@
     - name: cp disk prepare
       shell: scp root@{{admin_node}}:{{local_src_dir}}/prepare_osd.sh root@{{admin_addr}}:/tmp/prepare_osd.sh
 
+    - name: cp conf
+      shell: scp root@{{admin_node}}:/etc/ceph/{{cluster_name}}.conf.sample root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.conf.sample
+    #
+    #- name:  execute prepare script
+    #  ./prepare_osd.sh -x -m nvme1n1 -ws 10 -ds 30 -b sda,sdb,sdc,sdd,sde,sdf,sdg,sdh,sdi,sdj,sdk,sdl,sdm,sdn,sdo,sdp,sdq,sdl,sds,sdt,sdu,sdv,sdw,sdx
+    #  script: /tmp/prepare_osd.sh -c {{cache_devices}} -cs {{cache_size}} -m {{mata_devices}} -ws {{wal_size}} -ds {{db_size}} -b {{data_devices}}
     - name:  execute prepare script
-      script: /tmp/prepare_osd.sh
+      script: /tmp/prepare_osd.sh -m {{mata_devices}} -ws {{wal_size}} -ds {{db_size}} -b {{data_devices}}
 
     - name: create conf
-      shell: sh /tmp/generate_ceph_conf_add_osd.sh /tmp/{{cluster_name}}.conf.sample
+      shell: sh /tmp/generate_ceph_osd_conf.sh /etc/ceph/{{cluster_name}}.conf.sample
 
     - name: back conf
-      shell: scp root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.conf root@{{admin_node}}:/etc/ceph/{{cluster_name}}.conf.sample
+      shell: scp root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.conf.sample root@{{admin_node}}:/etc/ceph/{{cluster_name}}.conf.sample
 
     - block: 
       - name: enable osd service

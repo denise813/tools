@@ -48,8 +48,14 @@
     - name: clean mgr data
       shell: rm -rf /var/lib/ceph/mgr/{{cluster_name}}-{{node_name}}
 
+    - name: cp ceph.repo
+      shell: wget -P /etc/yum.repos.d/ http://{{mirror_node}}/repo/centos8/ceph.repo
+
     - name: install
       shell: yum install -y ceph-base ceph-common ceph-mon ceph-mgr librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common
+
+    - name: clean ceph.repo
+      shell: rm -rf /etc/yum.repos.d/ceph.repo
 
     - name : cp generate_admin_ceph_conf.sh
       shell: scp root@{{admin_node}}:/{{local_src_dir}}/generate_admin_ceph_conf.sh root@{{admin_addr}}:/tmp/
@@ -131,3 +137,6 @@
        
     - name: status mgr service
       shell: systemctl status ceph-mgr@{{node_name}}
+
+    - name: back conf
+      shell: cp /etc/ceph/{{cluster_name}}.conf /etc/ceph/{{cluster_name}}.conf.sample 
