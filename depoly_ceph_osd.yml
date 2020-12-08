@@ -2,16 +2,10 @@
 - hosts:
   - osds
   
-  gather_facts: false
-  any_errors_fatal: true
-  become: true
-  
-  tasks:
-    - name: create conf
-      shell: touch /tmp/{cluster_name}}.conf
+  #gather_facts: false
+  #any_errors_fatal: true
+  #become: true
  
- - hosts:
-  - osds
   vars_files:
     - ceph_vars.yml
   
@@ -26,39 +20,41 @@
       shell: /sbin/ifconfig {{public_interface}} | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
       register: node_addr
 
-- name: cp ceph.repo
-       shell: scp root@{{admin_node}}:/etc/yum.repos.d/ceph.repo root@{{node_addr}}:/etc/yum.repos.d/ceph.repo
+    - name: cp ceph.repo
+      shell: scp wget -P /etc/yum.repos.d/ http://${mirror_node}/repo/centos8/ceph.repo
      
-    - name: yum list
-       shell: yum list
-       
     - name: install
-       shell: yum install -y ceph-base ceph-common ceph-osd librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common
-       serial: 3
+      shell: yum install -y ceph-base ceph-common ceph-osd librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common
 
     - name: clean ceph.repo
-       shell: rm -rf /etc/yum.repos.d/ceph.repo
-       
-    - name: create conf
-      shell: ./generate_ceph_conf.sh
-      delegate_to: {{admin_node}}
+      shell: rm -rf /etc/yum.repos.d/ceph.repo
+    
+    - name : cp form admin
+      shell: scp root@{{admin_node}}:/etc/ceph/{{cluster_name}}.conf root@{{admin_addr}}:/tmp/{{cluster_name}}.conf.sample
+      delegate_to: "{{admin_node}}"
  
   tasks:
     - name: cp admin key
       shell: scp root@{{admin_node}}:/etc/ceph/{{cluster_name}}.client.admin.keyring root@{{node_addr}}/etc/ceph/{{cluster_name}}.client.admin.keyring
 
     - name: cp osd bootstrap keying
-
       shell: scp root@{{admin_node}}:/var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring root@{{node_addr}}:/var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring
     
     - name: cp disk prepare
-      shell: scp root@{{admin_node}}:/var/lib/ceph/osd/tools/prepare_osd.sh root@{{node_addr}}:/var/lib/ceph/osd/tools/prepare_osd.sh
+      shell: scp root@{{admin_node}}:/var/lib/ceph/osd/tools/prepare_osd.sh root@{{node_addr}}:/tmp/prepare_osd.sh
 
     - name:  execute prepare script
-      script: /var/lib/ceph/osd/tools/prepare_osd.sh
+      script: /tmp/prepare_osd.sh
+
+    - name: create conf
+      shell: sh /tmp/generate_ceph_conf_add_osd.sh /tmp/{{cluster_name}}.conf.sample
+
+    - name: back conf
+      shell: scp root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.conf root@{{admin_node}}:/etc/ceph/{{cluster_name}}.conf.sample
+
+    - block: 
+      - name: enable osd service
+        shell: systemctl enable ceph-osd.target
       
-    - name: enable osd service
-      shell: systemctl enable ceph-osd
-      
-    - name: start osd service
-      shell: systemctl start ceph-osd
+      - name: start osd service
+        shell: systemctl start ceph-osd.target
