@@ -16,12 +16,13 @@
     # ip v6 /sbin/ifconfig enp88s0f0 | awk '/inet6/ {print $2}'|awk 'NR==2 {print $1}'
     # ipv 4/sbin/ifconfig enp88s0f0 | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
     # 子网掩码 /sbin/ifconfig enp88s0f0 | awk '/netmask/ {print $4}'
-    - name: get public node_addr
-      shell: /sbin/ifconfig {{public_interface}} | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
-      register: node_addr
+    - name: get admin node_addr
+      shell: /sbin/ifconfig {{admin_interface}} | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
+      register: admin
+    - set_fact: admin_addr="{{admin.stdout}}"
 
     - name: cp ceph.repo
-      shell: scp wget -P /etc/yum.repos.d/ http://${mirror_node}/repo/centos8/ceph.repo
+      shell: wget -P /etc/yum.repos.d/ http://{{mirror_node}}/repo/centos8/ceph.repo
      
     - name: install
       shell: yum install -y ceph-base ceph-common ceph-osd librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common
@@ -35,13 +36,13 @@
  
   tasks:
     - name: cp admin key
-      shell: scp root@{{admin_node}}:/etc/ceph/{{cluster_name}}.client.admin.keyring root@{{node_addr}}/etc/ceph/{{cluster_name}}.client.admin.keyring
+      shell: scp root@{{admin_node}}:/etc/ceph/{{cluster_name}}.client.admin.keyring root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.client.admin.keyring
 
     - name: cp osd bootstrap keying
-      shell: scp root@{{admin_node}}:/var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring root@{{node_addr}}:/var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring
+      shell: scp root@{{admin_node}}:/var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring root@{{admin_addr}}:/var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring
     
     - name: cp disk prepare
-      shell: scp root@{{admin_node}}:/var/lib/ceph/osd/tools/prepare_osd.sh root@{{node_addr}}:/tmp/prepare_osd.sh
+      shell: scp root@{{admin_node}}:{{local_src_dir}}/prepare_osd.sh root@{{admin_addr}}:/tmp/prepare_osd.sh
 
     - name:  execute prepare script
       script: /tmp/prepare_osd.sh
