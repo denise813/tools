@@ -72,7 +72,7 @@
       shell: ceph-authtool --create-keyring --gen-key -n client.admin --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow *' --cap mgr 'allow *' /etc/ceph/{{cluster_name}}.client.admin.keyring
 
     - name: create osd bootstrap keying 
-      shell: ceph-authtool --create-keyring /var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring --gen-key -n client.bootstrap-osd --cap mon 'profile bootstrap-osd' --cap mgr 'allow r'
+      shell: ceph-authtool --create-keyring --gen-key -n client.bootstrap-osd --cap mon 'allow *' --cap mgr 'allow *' /var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring
 
     - name: join mon key
       shell: ceph-authtool /tmp/{{cluster_name}}.mon.keyring --import-keyring /etc/ceph/{{cluster_name}}.client.admin.keyring
