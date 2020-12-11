@@ -1,0 +1,148 @@
+---
+- hosts:
+  - osds
+  
+  #gather_facts: false
+  #any_errors_fatal: true
+  #become: true
+ 
+  vars_files:
+    - ceph_vars.yml
+  
+  pre_tasks:
+    - name: get hostname
+      shell: hostname
+      register: node
+    - set_fact: node_name="{{node.stdout}}"
+
+    # ip v6 /sbin/ifconfig enp88s0f0 | awk '/inet6/ {print $2}'|awk 'NR==2 {print $1}'
+    # ipv 4/sbin/ifconfig enp88s0f0 | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
+    # 子网掩码 /sbin/ifconfig enp88s0f0 | awk '/netmask/ {print $4}'
+    - name: get admin node_addr
+      shell: /sbin/ifconfig {{admin_interface}} | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
+      register: admin
+    - set_fact: admin_addr="{{admin.stdout}}"
+
+    - name: clean ceph.repo
+      shell: rm -rf /etc/yum.repos.d/ceph.repo
+
+    - name: cp ceph.repo
+      shell: wget -P /etc/yum.repos.d/ http://{{mirror_node}}/repo/centos8/ceph.repo && yum clean all && yum makecache
+
+    - name: install base
+      shell: yum install -y epel-release sdparm
+     
+    - name: install
+      shell: yum install -y ceph-base ceph-common ceph-osd librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common
+
+    - name: clean ceph.repo
+      shell: rm -rf /etc/yum.repos.d/ceph.repo
+    
+    - name : cp form admin
+      shell: scp root@{{admin_node}}:/etc/ceph/{{cluster_name}}.conf.sample root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.conf.sample
+
+    - name: cp generate_ceph_osd_conf.sh
+      shell: scp root@{{admin_node}}:/{{local_src_dir}}/generate_ceph_osd_conf.sh root@{{admin_addr}}:/tmp/generate_ceph_osd_conf.sh
+
+    - name: cp disk prepare
+      shell: scp root@{{admin_node}}:{{local_src_dir}}/prepare_osd.sh root@{{admin_addr}}:/tmp/prepare_osd.sh
+
+    - set_fact: osd_num="{{data_devices|length}}"
+    - set_fact: host_index="{{groups['osds'].index(inventory_hostname)}}"
+    - set_fact: start_id="{{start_osd_id|int + (host_index|int * osd_num|int)}}"
+    - set_fact: osd_ids="{{range(start_id|int, start_id|int + osd_num|int, 1)|list}}"
+    - set_fact: disk_indexs="{{range(1|int, 1|int + osd_num|int, 1)|list}}"
+    - set_fact: wal_start="0"
+    - set_fact: db_start="{{osd_num|int * wal_size}}"
+ 
+  tasks:
+    - name: check other use
+      shell: ls -l /var/lib/ceph//mon/{{cluster_name}}-{{node_name}}|wc -l
+      register: out
+    - set_fact: rc="{{out.stdout}}"
+
+    - name: cp admin key
+      shell: scp root@{{admin_node}}:/etc/ceph/{{cluster_name}}.client.admin.keyring root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.client.admin.keyring
+      when: ({{rc}} == '0')
+
+    - name: cp osd bootstrap keying
+      shell: scp root@{{admin_node}}:/var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring root@{{admin_addr}}:/var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring
+      when: ({{rc}} == '0')
+
+    - name: cp conf
+      shell: scp root@{{admin_node}}:/etc/ceph/{{cluster_name}}.conf.sample root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.conf.sample
+      when: ({{rc}} == '0')
+    #
+    #- name:  execute prepare script
+    #  ./prepare_osd.sh -x -m nvme1n1 -ws 10 -ds 30 -b sda,sdb,sdc,sdd,sde,sdf,sdg,sdh,sdi,sdj,sdk,sdl,sdm,sdn,sdo,sdp,sdq,sdl,sds,sdt,sdu,sdv,sdw,sdx
+    #  script: /tmp/prepare_osd.sh -c {{cache_devices}} -cs {{cache_size}} -m {{mata_devices}} -ws {{wal_size}} -ds {{db_size}} -b {{data_devices}}
+
+
+      #- name: clean meta nvme disk cache
+      #shell: sdparm -s WCE=0 /dev/{{mata_devices}}
+
+    - name: clean disk parted
+      shell: dd if=/dev/zero of=/dev/{{mata_devices}} bs=1M count=10
+
+    - name: build gpt
+      shell: parted /dev/{{mata_devices}} --script mktable gpt
+
+      #- name: clean data disk cache
+      #shell: sdparm -s WCE=0 /dev/{{item}}
+      #with_items: "{{data_devices}}"
+
+    - name: clean disk parted
+      shell: dd if=/dev/zero of=/dev/{{item}} bs=1M count=10
+      with_items: "{{data_devices}}"
+
+
+    - name: split disk for wal
+      shell: parted /dev/{{mata_devices}} --script mkpart primary {{wal_start|int + wal_size|int * item.0|int}}G {{wal_start|int + wal_size|int * (item.0|int + 1|int)}}G
+      with_indexed_items: "{{data_devices}}"
+    
+    - name: split disk for db
+      shell: parted /dev/{{mata_devices}} --script mkpart primary {{db_start|int + db_size|int * item.0|int}}G {{db_start|int + db_size|int * (item.0|int + 1|int)}}G
+      with_indexed_items: "{{data_devices}}"
+
+
+    - set_fact: wal_param=[]
+    - set_fact:
+         wal_param="{{wal_param}}+['--block.wal /dev/{{mata_devices}}p{{item.0|int + 1|int}}']"
+      with_indexed_items: "{{data_devices}}"
+
+    - set_fact: db_param=[]
+    - set_fact:
+          db_param="{{db_param}}+['--block.db /dev/{{mata_devices}}p{{item.0|int + 1|int + osd_num|int}}']"
+      with_indexed_items: "{{data_devices}}"
+
+    - name: prepare osds
+      shell: /bin/bash -c ulimit -n 32768;ceph-volume raw prepare --bluestore --data /dev/{{item.1}} {{item.2}} {{item.3}} --osd_id {{item.0}} --no-tmpfs
+      with_together:
+        - "{{osd_ids}}"
+        - "{{data_devices}}"
+        - "{{wal_param}}"
+        - "{{db_param}}"
+
+    - name: activate osds
+      shell: /bin/bash -c ulimit -n 32768;ceph-volume raw activate --device /dev/{{item.0}} {{item.1}} {{item.2}} --no-tmpfs --no-systemd
+      with_together:
+        - "{{data_devices}}"
+        - "{{wal_param}}"
+        - "{{db_param}}"
+ 
+
+    - name: create conf
+      shell: sh /tmp/generate_ceph_osd_conf.sh /etc/ceph/{{cluster_name}}.conf.sample
+
+    - name: back conf
+      shell: scp root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.conf.sample root@{{admin_node}}:/etc/ceph/{{cluster_name}}.conf.sample
+      when: ({{rc}} == '0')
+
+    - name: enable osds
+      shell: systemctl enable ceph-osd@{{item}}
+      with_items: "{{osd_ids}}"
+
+    - name: start osds
+      shell: systemctl start ceph-osd@{{item}}
+      with_items: "{{osd_ids}}"
+

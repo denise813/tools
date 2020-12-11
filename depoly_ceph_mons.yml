@@ -1,10 +1,12 @@
 ---
 - hosts:
-  - admin
+  - mons
 
   vars_files:
     - ceph_vars.yml
-  
+
+  serial: 1
+
   pre_tasks:
     - name: get hostname
       shell: hostname
@@ -32,15 +34,10 @@
 
     - name: remove package
       shell: yum remove -y ceph-base ceph-common ceph-mon ceph-mgr librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common
-     
-    - name: clean tmp mon key
-      shell: rm -rf /tmp/{{cluster_name}}.mon.keyring
+      ignore_errors: yes
 
     - name:  clean admin key
       shell: rm -rf /etc/ceph/{{cluster_name}}.client.admin.keyring
-
-    - name: clean tmp monmap
-      shell: rm -rf /tmp/{{cluster_name}}_monmap.1223
 
     - name : clean mon data
       shell: rm -rf /var/lib/ceph/mon/{{cluster_name}}-{{node_name}}
@@ -57,41 +54,34 @@
     - name: install
       shell: yum install -y ceph-base ceph-common ceph-mon ceph-mgr librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common
 
-    - name: clean ceph.repo
-      shell: rm -rf /etc/yum.repos.d/ceph.repo
-
-    - name : cp generate_admin_ceph_conf.sh
-      shell: scp root@{{admin_node}}:/{{local_src_dir}}/generate_admin_ceph_conf.sh root@{{admin_addr}}:/tmp/
+    - name : cp form admin
+      shell: scp root@{{admin_node}}://etc/ceph/{{cluster_name}}.conf root@{{admin_addr}}:/tmp/{{cluster_name}}.conf.sample
       delegate_to: "{{admin_node}}"
 
     - name: create conf
-      shell: sh /tmp/generate_admin_ceph_conf.sh -fsid {{cluster_id}} -public {{public_interface}} -cluster {{cluster_interface}} -netmask {{network_mask}}
+      shell: sh /tmp/generate_ceph_mon_conf.sh /etc/ceph/{{cluster_name}}.conf.sample
+
+    - name : cp form admin
+      shell: cp /etc/ceph/{{cluster_name}}.conf.sample /etc/ceph/{{cluster_name}}.conf
 
   tasks:
-    - name: create tmp mon key
-      shell: ceph-authtool --create-keyring /tmp/{{cluster_name}}.mon.keyring --gen-key -n mon. --cap mon 'allow *'
+    - name: cp admin key
+      shell: scp root@{{admin_node}}:/etc/ceph/{{cluster_name}}.client.admin.keyring root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.client.admin.keyring
 
-    - name: create admin key
-      shell: ceph-authtool --create-keyring --gen-key -n client.admin --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow *' --cap mgr 'allow *' /etc/ceph/{{cluster_name}}.client.admin.keyring
+    - name: get mon key
+      shell: scp root@{{admin_node}}:/var/lib/ceph/mon/*/keyring root@{{admin_addr}}:/tmp/{{cluster_name}}.mon.keyring
 
-    - name: create osd bootstrap keying 
-      shell: ceph-authtool --create-keyring --gen-key -n client.bootstrap-osd --cap mon 'allow *' --cap mgr 'allow *' /var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring
-
-    - name: join mon key
-      shell: ceph-authtool /tmp/{{cluster_name}}.mon.keyring --import-keyring /etc/ceph/{{cluster_name}}.client.admin.keyring
-
-    - name: join osd bootstrap keying
-      shell: ceph-authtool /tmp/{{cluster_name}}.mon.keyring --import-keyring /var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring
-
-    - name: create tmp monmap
-      shell: monmaptool --create --clobber --addv {{admin_addr}} [v2:{{public_addr}}:3300,v1:{{public_addr}}:6798] --fsid {{cluster_id}} --print /tmp/{{cluster_name}}_monmap.1223
-
-    - name: create data dir
+    - name: create mon data dir
       shell: mkdir -p /var/lib/ceph/mon/{{cluster_name}}-{{node_name}}
 
     - name: cp conf
-      shell: scp root@{{admin_node}}:/tmp/ceph.conf root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.conf
-      delegate_to: "{{admin_node}}"
+      shell: cp /tmp/ceph.conf /etc/ceph/{{cluster_name}}.conf
+
+    - name: get mon map
+      shell: ceph mon getmap -o /tmp/{{cluster_name}}_monmap.1223 --cluster {{cluster_name}}
+
+    - name: join mon
+      shell: monmaptool -i {{node_name}} --inject-monmap /tmp/{{cluster_name}}_monmap.1223
 
     - name: mkfs mon
       shell: ceph-mon --cluster {{cluster_name}} --mkfs -i {{node_name}} -c /etc/ceph/{{cluster_name}}.conf --monmap /tmp/{{cluster_name}}_monmap.1223 --keyring=/tmp/{{cluster_name}}.mon.keyring
@@ -110,27 +100,12 @@
       
     - name: status mon service
       shell: systemctl status ceph-mon@{{node_name}}
-
-    - name: get mon map
-      shell: ceph mon getmap -o monmap --cluster {{cluster_name}}
-     
-    - name: check mon
-      shell: monmaptool --print monmap
-
-    - name: auth mon
-      shell: ceph auth get mon. --cluster {{cluster_name}}
       
-    - name: crush rm rule
-      shell: ceph osd crush rule rm replicated_rule
-     
-    - name: crush rm osd
-      shell: ceph osd crush remove default
-
     - name: create mgr data dir
       shell: mkdir -p /var/lib/ceph/mgr/{{cluster_name}}-{{node_name}}
 
     - name: create mgr key
-      shell: ceph auth get-or-create mgr.{{node_name}}  mon 'allow profile mgr' osd 'allow *' mds 'allow *' -o /var/lib/ceph/mgr/ceph-{{node_name}}/keyring
+      shell: ceph auth get-or-create mgr.{{node_name}} mon 'allow profile mgr' osd 'allow *' mds 'allow *' -o /var/lib/ceph/mgr/ceph-{{node_name}}/keyring
       
     - name: enable mgr service
       shell: systemctl enable ceph-mgr@{{node_name}}
@@ -141,5 +116,17 @@
     - name: status mgr service
       shell: systemctl status ceph-mgr@{{node_name}}
 
-    - name: back conf
-      shell: cp /etc/ceph/{{cluster_name}}.conf /etc/ceph/{{cluster_name}}.conf.sample 
+  post_tasks:
+    - name: backup to admin
+      shell : scp root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.conf root@{{admin_node}}:/tmp/ceph.conf
+
+- hosts:
+  - ceph_nodes
+
+  - name: get admin node_addr
+    shell: /sbin/ifconfig {{admin_interface}} | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
+    register: admin
+  - set_fact: admin_addr="{{admin.stdout}}"
+
+  - name: update conf
+    shell : scp root@{{admin_node}}:/etc/ceph/{{cluster_name}}.conf root@{{admin_addr}}:/etc/ceph/{{cluster_name}}.conf

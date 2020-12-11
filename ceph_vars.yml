@@ -4,6 +4,7 @@ cluster_id: 945754ee-b689-5b6a-a6ba-c87b537b1cfa
 mirror_node: 10.121.136.118
 admin_node: 10.121.136.118
 local_src_dir: /root/tools/
+tmp_link_dir: /tmp/osd/link/
 admin_interface: eno1
 public_interface: ens1f0
 cluster_interface: ens1f1
@@ -12,6 +13,7 @@ public_network: 192.168.100.0/24
 cluster_network: 192.168.200.0/24
 clients_users:
   - nova
+start_osd_id: 0
 cache_size: 70
 wal_size: 10
 db_size: 30
@@ -35,7 +37,7 @@ data_devices:
   - sdo
   - sdp
   - sdq
-  - sdl
+  - sdr
   - sds
   - sdt
   - sdu

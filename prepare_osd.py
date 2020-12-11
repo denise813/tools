@@ -1,3 +1,20 @@
+import getopt
+import sys
+
+def usage():
+    print(
+        """
+        Usage:sys.args[0] [option]
+        -h or --help: 显示帮助信息
+        -c or --cache-disk: 缓存盘磁盘
+        -m or --meta-disk: 元数据磁盘
+        -b or --data-disks: 数据盘
+        -ws or --wal-disk-size: 日志盘大小
+        -ds or --db-disk-size: 数据库盘大小
+        -sid or --start-osd-id: 起始osd id
+        """
+    )
+
 #! /bin/bash
 set -x
 

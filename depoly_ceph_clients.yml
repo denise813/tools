@@ -1,0 +1,75 @@
+---
+- hosts: ubuntu_clients
+  vars_files:
+    - ceph_vars.yml
+
+  tasks:
+    - name: cp ceph.repo
+      shell: deb http://{{mirror_node}}/ubuntu/lenovo-ceph13-release/ ceph
+
+- hosts: centos_clients
+  vars_files:
+    - ceph_vars.yml
+  
+  tasks:
+    - name: cp ceph.repo
+      shell: cd /etc/yum.repos.d/ && yum-config-manager --add-repo --nogpgcheck http://{{mirror_node}}/repo/ceph.repo
+     
+    - name: set priority
+      shell: echo "priority=1" >>/etc/yum.repos.d/ceph.repo
+
+    - name: yum refresh
+      shell: yum-config-manager refresh
+       
+    - name: install
+      shell: yum install -y ceph-base ceph-common librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common
+      #serial: 3
+
+    - name: clean ceph.repo
+      shell: rm -rf /etc/yum.repos.d/ceph.repo
+
+- hosts : suse_clients
+  vars_files:
+    - ceph_vars.yml
+  tasks:
+    - name : clean repo
+      shell : zypper rr ceph
+      ignore_errors: yes
+
+    - name : add repo
+      shell : zypper ar --no-gpgcheck -p 1 http://{{mirror_node}}/susesuse15sp2/lenovo-ceph13-release/ ceph
+
+    - name : check repo
+      shell : zypper lr -p|grep ceph
+
+    - name : refresh repo
+      shell : zypper refresh
+
+    - name : install rpm
+      shell : zypper install ceph-common librados2 libcephfs2 libradosstriper1 librbd1 librgw2 python3-cephfs python3-rados python3-rbd python3-rgw
+
+    - name: clean repo
+      shell : zypper rr ceph
+
+ - hosts: clients
+  vars_files:
+    - ceph_vars.yml
+
+  pre_tasks:
+    # ip v6 /sbin/ifconfig enp88s0f0 | awk '/inet6/ {print $2}'|awk 'NR==2 {print $1}'
+    # ipv 4/sbin/ifconfig enp88s0f0 | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
+    # 子网掩码 /sbin/ifconfig enp88s0f0 | awk '/netmask/ {print $4}'
+    - name: get public node_addr
+      shell: /sbin/ifconfig {{public_interface}} | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
+      register: node_addr
+
+  tasks:
+    - name: cp conf
+      shell: scp root@{{admin_node}}:/etc/ceph/ceph.conf /etc/ceph/{{cluster_name}}.conf
+
+    - name: cp admin key
+      shell: scp root@{{admin_node}}:/etc/yum.repos.d/ceph.repo /etc/ceph/{{cluster_name}}.client.admin.keyring
+
+    - name: create other client
+      shell: ceph auth get-or-create client.{{item}} -o //etc/ceph/{{cluster_name}}.client.{{item}}.keyring
+      when: {{clients_users}}
