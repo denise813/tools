@@ -4,14 +4,21 @@
 
   vars_files:
     - ceph_vars.yml
-     
+
+  pre_tasks:
+    - name: get hostname
+      shell: hostname
+      register: node
+    - set_fact: node_name="{{node.stdout}}"
+  
+  tasks: 
     - name: stop mgr service
       shell: systemctl stop ceph-mgr@{{node_name}}
       
     - name: disable mgr service
       shell: systemctl disable ceph-mgr@{{node_name}}
       
-    - name: create mgr key
+    - name: delete mgr key
       shell: ceph auth del mgr.{{node_name}}
       
     - name: rm mgr data dir
@@ -35,5 +42,5 @@
     - name: rm conf
       shell: rm -rf /etc/ceph/{{cluster_name}}.conf
       
-     - name: remove package
+    - name: remove package
       shell: yum remove -y ceph-base ceph-common ceph-mon ceph-mgr librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common

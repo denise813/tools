@@ -11,7 +11,7 @@ network_mask: 24
 public_network: 192.168.100.0/24
 cluster_network: 192.168.200.0/24
 clients_users:
-  - name: nova
+  - nova
 cache_size: 70
 wal_size: 10
 db_size: 30
