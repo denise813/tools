@@ -41,11 +41,15 @@
 
     - name : clean mon data
       shell: rm -rf /var/lib/ceph/mon/{{cluster_name}}-{{node_name}}
+
     - name: clean mgr data
       shell: rm -rf /var/lib/ceph/mgr/{{cluster_name}}-{{node_name}}
-     
+
+    - name: clean ceph.repo
+      shell: rm -rf /etc/yum.repos.d/ceph.repo
+
     - name: cp ceph.repo
-      shell: wget -P /etc/yum.repos.d/ http://{{mirror_node}}/repo/centos8/ceph.repo
+      shell: wget -P /etc/yum.repos.d/ http://{{mirror_node}}/repo/centos8/ceph.repo && yum clean all && yum makecache
 
     - name: install
       shell: yum install -y ceph-base ceph-common ceph-mon ceph-mgr librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common

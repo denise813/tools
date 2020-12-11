@@ -21,8 +21,11 @@
       register: admin
     - set_fact: admin_addr="{{admin.stdout}}"
 
+    - name: clean ceph.repo
+      shell: rm -rf /etc/yum.repos.d/ceph.repo
+
     - name: cp ceph.repo
-      shell: wget -P /etc/yum.repos.d/ http://{{mirror_node}}/repo/centos8/ceph.repo
+      shell: wget -P /etc/yum.repos.d/ http://{{mirror_node}}/repo/centos8/ceph.repo && yum clean all && yum makecache
 
     - name: install base
       shell: yum install -y epel-release sdparm

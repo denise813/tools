@@ -12,20 +12,27 @@
   pre_tasks:
     - name: get hostname
       shell: hostname
+      register: node
+    - set_fact: node_name="{{node.stdout}}"
+
+    - name: get admin node_addr
+      shell: /sbin/ifconfig {{admin_interface}} | awk '/inet/ {print $2}' | cut -f2 -d ":" |awk 'NR==1 {print $1}'
+      register: admin
+    - set_fact: admin_addr="{{admin.stdout}}"
 
   tasks:
     - name: cp disk zap
       shell: scp root@{{admin_node}}:{{local_src_dir}}/clean_osd.sh root@{{admin_addr}}:/tmp/clean_osd.sh
  
-     - name: clean osd disk
-       shell: /tmp/clean_osd.sh
+    - name: clean osd disk
+      shell: sh /tmp/clean_osd.sh
 
-    - name: cp admin key
+    - name: rm admin key
       shell: rm -rf /etc/ceph/{{cluster_name}}.client.admin.keyring
 
-    - name: cp osd bootstrap keying
+    - name: rm osd bootstrap keying
       shell: rm -rf /var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring
 
-    - name: remove
+    - name: remove package
       shell: yum remove -y ceph-base ceph-common ceph-osd librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common
 
