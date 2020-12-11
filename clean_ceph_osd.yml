@@ -1,0 +1,31 @@
+---
+- hosts:
+  - osds
+  
+  #gather_facts: false
+  #any_errors_fatal: true
+  #become: true
+
+  vars_files:
+    - ceph_vars.yml
+  
+  pre_tasks:
+    - name: get hostname
+      shell: hostname
+
+  tasks:
+    - name: cp disk zap
+      shell: scp root@{{admin_node}}:{{local_src_dir}}/clean_osd.sh root@{{admin_addr}}:/tmp/clean_osd.sh
+ 
+     - name: clean osd disk
+       shell: /tmp/clean_osd.sh
+
+    - name: cp admin key
+      shell: rm -rf /etc/ceph/{{cluster_name}}.client.admin.keyring
+
+    - name: cp osd bootstrap keying
+      shell: rm -rf /var/lib/ceph/bootstrap-osd/{{cluster_name}}.keyring
+
+    - name: remove
+      shell: yum remove -y ceph-base ceph-common ceph-osd librados2 libradosstriper1 librbd1 python3-ceph-argparse python3-rados python3-rbd python3-ceph-common
+
